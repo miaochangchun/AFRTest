@@ -4,6 +4,11 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -20,9 +25,15 @@ import android.widget.Toast;
 import com.example.sinovoice.afr.FaceUtil;
 import com.example.sinovoice.afr.HciCloudAfrHelper;
 import com.example.sinovoice.afr.HciCloudSysHelper;
+import com.sinovoice.hcicloudsdk.common.afr.AfrDetectFace;
+import com.sinovoice.hcicloudsdk.common.afr.AfrDetectFacebox;
+import com.sinovoice.hcicloudsdk.common.afr.AfrDetectLandmark;
+import com.sinovoice.hcicloudsdk.common.afr.AfrDetectResult;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener{
 
@@ -97,7 +108,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 startActivityForResult(intent, REQUEST_PICTURE_CHOOSE);
                 break;
             case R.id.afr_detect:           //选择人脸检测按钮
-                mHciCloudAfrHelper.detectAfr(imagePath, afrCapkey);
+                AfrDetectResult afrDetectResult = mHciCloudAfrHelper.detectAfr(imagePath, afrCapkey);
+                printAfrDetectResutl(afrDetectResult);
                 break;
             case R.id.afr_enroll:           //选择人脸注册按钮
                 if (afrUserid.getText().toString().isEmpty()) {
@@ -115,6 +127,93 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             default:
                 break;
         }
+    }
+
+    /**
+     * 将检测的人脸信息print一下
+     * @param afrDetectResult
+     */
+    private void printAfrDetectResutl(AfrDetectResult afrDetectResult) {
+        if (afrDetectResult.getFaceList().size() == 0) {
+            Toast.makeText(this, "没检测到人脸.", Toast.LENGTH_SHORT).show();
+            return ;
+        }
+        //人脸信息列表
+        ArrayList<AfrDetectFace> afrDetectFaces = afrDetectResult.getFaceList();
+        Iterator<AfrDetectFace> iterator = afrDetectFaces.iterator();
+        while (iterator.hasNext()) {
+            AfrDetectFace afrDetectFace = iterator.next();
+            //人脸位置信息
+            AfrDetectFacebox afrDetectFacebox = afrDetectFace.getFacebox();
+            int bottom = afrDetectFacebox.getBottom();
+            Log.d(TAG, "人脸检测底边纵坐标： " + bottom);
+            //获取顶边纵坐标
+            int top = afrDetectFacebox.getTop();
+            Log.d(TAG, "人脸检测顶边纵坐标： " + top);
+            //获取左边横坐标
+            int left = afrDetectFacebox.getLeft();
+            Log.d(TAG, "人脸检测左边横坐标： " + left);
+            //获取右边横坐标
+            int right = afrDetectFacebox.getRight();
+            Log.d(TAG, "人脸检测右边横坐标： " + right);
+
+            showFaceImage(bottom, top, left, right);
+
+            //人脸Id
+            String faceId = afrDetectFace.getFaceId();
+
+            //人脸关键信息列表
+            ArrayList<AfrDetectLandmark> afrDetectLandmarks = afrDetectFace.getLandmarkList();
+            Iterator<AfrDetectLandmark> markIterator = afrDetectLandmarks.iterator();
+            while(markIterator.hasNext()){
+                AfrDetectLandmark afrDetectLandmark = markIterator.next();
+                //人脸关键点的横坐标
+                int X = afrDetectLandmark.getX();
+                Log.d(TAG, "人脸检测关键点横坐标:" + X);
+                //人脸关键点的纵坐标
+                int Y = afrDetectLandmark.getY();
+                Log.d(TAG, "人脸检测关键点纵坐标:" + Y);
+                showLandmarkImage(X, Y);
+            }
+        }
+    }
+
+    /**
+     * 将人脸的四个边框勾画出来
+     * @param bottom
+     * @param top
+     * @param left
+     * @param right
+     */
+    private void showFaceImage(int bottom, int top, int left, int right) {
+        Paint paint = new Paint();
+        paint.setColor(Color.RED);
+        paint.setStrokeWidth(Math.max(mImage.getWidth(), mImage.getHeight()) / 100f);
+        Bitmap bitmap = Bitmap.createBitmap(mImage.getWidth(), mImage.getHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        canvas.drawBitmap(mImage, new Matrix(), null);
+        paint.setStyle(Paint.Style.STROKE);
+        canvas.drawRect(new Rect(left, top, right, bottom), paint);
+        mImage = bitmap;
+        afrImage.setImageBitmap(mImage);
+    }
+
+    /**
+     * 将x，y坐标在Image图片上显示出来
+     * @param x
+     * @param y
+     */
+    private void showLandmarkImage(int x, int y) {
+        Paint paint = new Paint();
+        paint.setColor(Color.RED);
+        paint.setStrokeWidth(Math.max(mImage.getWidth(), mImage.getHeight()) / 100f);
+        Bitmap bitmap = Bitmap.createBitmap(mImage.getWidth(), mImage.getHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        canvas.drawBitmap(mImage, new Matrix(), null);
+        paint.setStyle(Paint.Style.STROKE);
+        canvas.drawPoint((float) x, (float) y, paint);
+        mImage = bitmap;
+        afrImage.setImageBitmap(mImage);
     }
 
     @Override

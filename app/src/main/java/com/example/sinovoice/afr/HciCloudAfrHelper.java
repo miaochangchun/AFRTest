@@ -73,15 +73,15 @@ public class HciCloudAfrHelper {
 
     /**
      * 人脸检测函数
-     * @param fileName
-     * @param afrCapkey
-     * @return
+     * @param fileName  人脸图片路径
+     * @param afrCapkey 人脸识别的capkey，本地为afr.local.recog；云端为afr.cloud.recog
+     * @return  人脸检测的结果类
      */
-    public int detectAfr(String fileName, String afrCapkey){
+    public AfrDetectResult detectAfr(String fileName, String afrCapkey){
         byte[] buffer = getImageBuffer(fileName);
         if (buffer.length == 0) {
             Log.e(TAG, "图片数据错误");
-            return -1;
+            return null;
         }
         Session session = new Session();
         String sessionConfig = getSessionParam(afrCapkey);
@@ -89,13 +89,13 @@ public class HciCloudAfrHelper {
         int errorCode = HciCloudAfr.hciAfrSessionStart(sessionConfig, session);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrSessionStart failed and return " + errorCode);
-            return errorCode;
+            return null;
         }
         //设置要识别的图片数据
         errorCode = HciCloudAfr.hciAfrSetImageBuffer(session, buffer);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrSetImageBuffer failed and return " + errorCode);
-            return errorCode;
+            return null;
         }
         //人脸检测的配置参数，如果设置为空，则使用sessionConfig的配置串
         String detectConfig = "";
@@ -105,24 +105,24 @@ public class HciCloudAfrHelper {
         errorCode = HciCloudAfr.hciAfrDetect(session, detectConfig, afrDetectResult);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrDetect failed and return " + errorCode);
-            return errorCode;
+            return null;
         }
         if(afrDetectResult.getFaceList().size() > 0){
             Log.d(TAG, "人脸检测结果正确");
         }
         //释放人脸检测的结果类
-        errorCode = HciCloudAfr.hciAfrFreeDetectResult(afrDetectResult);
-        if (errorCode != HciErrorCode.HCI_ERR_NONE) {
-            Log.e(TAG, "HciCloudAfr.hciAfrFreeDetectResult failed and return " + errorCode);
-            return errorCode;
-        }
+//        errorCode = HciCloudAfr.hciAfrFreeDetectResult(afrDetectResult);
+//        if (errorCode != HciErrorCode.HCI_ERR_NONE) {
+//            Log.e(TAG, "HciCloudAfr.hciAfrFreeDetectResult failed and return " + errorCode);
+//            return errorCode;
+//        }
         //释放Session
         errorCode = HciCloudAfr.hciAfrSessionStop(session);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrSessionStop failed and return " + errorCode);
-            return errorCode;
+            return null;
         }
-        return HciErrorCode.HCI_ERR_NONE;
+        return afrDetectResult;
     }
 
     /**
