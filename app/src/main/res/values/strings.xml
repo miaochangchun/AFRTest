@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">AFRTest</string>
+    <string name="title">人脸识别示例</string>
+    <string name="afr_userid">userid</string>
+    <string name="afr_pick">选图</string>
+    <string name="afr_camera">拍照</string>
+    <string name="afr_enroll">注册</string>
+    <string name="afr_query">查询</string>
+    <string name="afr_detect">检测</string>
+    <string name="afr_identify">辨识</string>
+</resources>
