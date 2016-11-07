@@ -25,6 +25,8 @@ import android.widget.Toast;
 import com.example.sinovoice.afr.FaceUtil;
 import com.example.sinovoice.afr.HciCloudAfrHelper;
 import com.example.sinovoice.afr.HciCloudSysHelper;
+import com.example.sinovoice.afr.HciCloudUserHelper;
+import com.sinovoice.hcicloudsdk.common.HciErrorCode;
 import com.sinovoice.hcicloudsdk.common.afr.AfrDetectFace;
 import com.sinovoice.hcicloudsdk.common.afr.AfrDetectFacebox;
 import com.sinovoice.hcicloudsdk.common.afr.AfrDetectLandmark;
@@ -113,14 +115,44 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 break;
             case R.id.afr_enroll:           //选择人脸注册按钮
                 if (afrUserid.getText().toString().isEmpty()) {
-                    Log.e(TAG, "userid" + afrUserid.getText().toString());
-                    Toast.makeText(this, "请输入人脸对应的userId", Toast.LENGTH_SHORT).show();
-                }else {
+                    Log.e(TAG, "userid不能为空！");
+                    Toast.makeText(this, "必须输入userId", Toast.LENGTH_SHORT).show();
+                }else if(afrUserid.getText().toString().length() > 64){
+                    Log.e(TAG, "userId超过64字符串了");
+                    Toast.makeText(this, "userId超过64字符串了", Toast.LENGTH_SHORT).show();
+                } else if (HciCloudUserHelper.getInstance().getUserList("").contains(afrUserid.getText().toString())) {
+                    Log.e(TAG, "userId已经存在了，请重新输入！");
+                    Toast.makeText(this, "userId已经存在了，请重新输入！", Toast.LENGTH_SHORT).show();
+                } else {
                     //人脸注册的功能
-                    mHciCloudAfrHelper.enrollAfr(imagePath, afrCapkey, afrUserid.getText().toString());
+                    int nRet = mHciCloudAfrHelper.enrollAfr(imagePath, afrCapkey, afrUserid.getText().toString());
+                    if (nRet == HciErrorCode.HCI_ERR_NONE) {
+                        Log.d(TAG, "人脸注册成功！");
+                        Toast.makeText(this, "人脸注册成功！", Toast.LENGTH_SHORT).show();
+                    }
                 }
                 break;
-            case R.id.afr_query:
+            case R.id.afr_query:            //人脸一对一识别功能
+                if (afrUserid.getText().toString().isEmpty()) {
+                    Log.e(TAG, "userid不能为空！");
+                    Toast.makeText(this, "必须输入userId", Toast.LENGTH_SHORT).show();
+                } else if (afrUserid.getText().toString().length() > 64) {
+                    Log.e(TAG, "userId超过64字符串了");
+                    Toast.makeText(this, "userId超过64字符串了", Toast.LENGTH_SHORT).show();
+                } else if (!HciCloudUserHelper.getInstance().getUserList("").contains(afrUserid.getText().toString())) {
+                    Log.e(TAG, "userId不存在了，请重新输入！");
+                    Toast.makeText(this, "userId不存在了，请重新输入！", Toast.LENGTH_SHORT).show();
+                } else {
+                    //人脸一对一识别功能
+                    boolean bool = mHciCloudAfrHelper.verifyAfr(imagePath, afrCapkey, afrUserid.getText().toString());
+                    if (bool == true) {
+                        Log.d(TAG, "人脸比对成功");
+                        Toast.makeText(this, "人脸比对成功", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Log.d(TAG, "人脸比对失败");
+                        Toast.makeText(this, "人脸比对失败", Toast.LENGTH_SHORT).show();
+                    }
+                }
                 break;
             case R.id.afr_identify:
                 break;
@@ -157,6 +189,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             int right = afrDetectFacebox.getRight();
             Log.d(TAG, "人脸检测右边横坐标： " + right);
 
+            //在人脸的图片上，把关键点给勾画出来
             showFaceImage(bottom, top, left, right);
 
             //人脸Id
@@ -180,10 +213,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     /**
      * 将人脸的四个边框勾画出来
-     * @param bottom
-     * @param top
-     * @param left
-     * @param right
+     * @param bottom    底边坐标
+     * @param top   顶边坐标
+     * @param left  左边坐标
+     * @param right 右边坐标
      */
     private void showFaceImage(int bottom, int top, int left, int right) {
         Paint paint = new Paint();
