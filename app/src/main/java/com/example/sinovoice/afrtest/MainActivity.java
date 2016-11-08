@@ -32,6 +32,10 @@ import com.sinovoice.hcicloudsdk.common.afr.AfrDetectFacebox;
 import com.sinovoice.hcicloudsdk.common.afr.AfrDetectLandmark;
 import com.sinovoice.hcicloudsdk.common.afr.AfrDetectResult;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.util.ArrayList;
@@ -110,8 +114,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 startActivityForResult(intent, REQUEST_PICTURE_CHOOSE);
                 break;
             case R.id.afr_detect:           //选择人脸检测按钮
-                AfrDetectResult afrDetectResult = mHciCloudAfrHelper.detectAfr(imagePath, afrCapkey);
-                printAfrDetectResutl(afrDetectResult);
+                JSONObject jsonObject = mHciCloudAfrHelper.detectAfr(imagePath, afrCapkey);
+                if (jsonObject == null) {
+                    Toast.makeText(this, "没有检测到人脸！", Toast.LENGTH_SHORT).show();
+                } else {
+                    printAfrDetectResutl(jsonObject);
+                }
                 break;
             case R.id.afr_enroll:           //选择人脸注册按钮
                 if (afrUserid.getText().toString().isEmpty()) {
@@ -125,11 +133,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     Toast.makeText(this, "userId已经存在了，请重新输入！", Toast.LENGTH_SHORT).show();
                 } else {
                     //人脸注册的功能
-                    int nRet = mHciCloudAfrHelper.enrollAfr(imagePath, afrCapkey, afrUserid.getText().toString());
-                    if (nRet == HciErrorCode.HCI_ERR_NONE) {
-                        Log.d(TAG, "人脸注册成功！");
-                        Toast.makeText(this, "人脸注册成功！", Toast.LENGTH_SHORT).show();
-                    }
+                    String result = mHciCloudAfrHelper.enrollAfr(imagePath, afrCapkey, afrUserid.getText().toString());
+                    Log.d(TAG, "result = " + result);
+                    Toast.makeText(this, result, Toast.LENGTH_SHORT).show();
                 }
                 break;
             case R.id.afr_query:            //人脸一对一识别功能
@@ -140,21 +146,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     Log.e(TAG, "userId超过64字符串了");
                     Toast.makeText(this, "userId超过64字符串了", Toast.LENGTH_SHORT).show();
                 } else if (!HciCloudUserHelper.getInstance().getUserList("").contains(afrUserid.getText().toString())) {
-                    Log.e(TAG, "userId不存在了，请重新输入！");
-                    Toast.makeText(this, "userId不存在了，请重新输入！", Toast.LENGTH_SHORT).show();
+                    Log.e(TAG, "userId不存在，请先注册！");
+                    Toast.makeText(this, "userId不存在，请先注册！", Toast.LENGTH_SHORT).show();
                 } else {
                     //人脸一对一识别功能
-                    boolean bool = mHciCloudAfrHelper.verifyAfr(imagePath, afrCapkey, afrUserid.getText().toString());
-                    if (bool == true) {
-                        Log.d(TAG, "人脸比对成功");
-                        Toast.makeText(this, "人脸比对成功", Toast.LENGTH_SHORT).show();
-                    } else {
-                        Log.d(TAG, "人脸比对失败");
-                        Toast.makeText(this, "人脸比对失败", Toast.LENGTH_SHORT).show();
-                    }
+                    String verifyResult = mHciCloudAfrHelper.verifyAfr(imagePath, afrCapkey, afrUserid.getText().toString());
+                    Toast.makeText(this, verifyResult, Toast.LENGTH_SHORT).show();
                 }
                 break;
             case R.id.afr_identify:
+                //人脸一对多识别功能
+                String identifyResult = mHciCloudAfrHelper.identifyAfr(imagePath, afrCapkey);
+                Toast.makeText(this, identifyResult, Toast.LENGTH_SHORT).show();
                 break;
             default:
                 break;
@@ -163,51 +166,43 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     /**
      * 将检测的人脸信息print一下
-     * @param afrDetectResult
+     * @param jsonObject
      */
-    private void printAfrDetectResutl(AfrDetectResult afrDetectResult) {
-        if (afrDetectResult.getFaceList().size() == 0) {
-            Toast.makeText(this, "没检测到人脸.", Toast.LENGTH_SHORT).show();
-            return ;
-        }
-        //人脸信息列表
-        ArrayList<AfrDetectFace> afrDetectFaces = afrDetectResult.getFaceList();
-        Iterator<AfrDetectFace> iterator = afrDetectFaces.iterator();
-        while (iterator.hasNext()) {
-            AfrDetectFace afrDetectFace = iterator.next();
-            //人脸位置信息
-            AfrDetectFacebox afrDetectFacebox = afrDetectFace.getFacebox();
-            int bottom = afrDetectFacebox.getBottom();
-            Log.d(TAG, "人脸检测底边纵坐标： " + bottom);
-            //获取顶边纵坐标
-            int top = afrDetectFacebox.getTop();
-            Log.d(TAG, "人脸检测顶边纵坐标： " + top);
-            //获取左边横坐标
-            int left = afrDetectFacebox.getLeft();
-            Log.d(TAG, "人脸检测左边横坐标： " + left);
-            //获取右边横坐标
-            int right = afrDetectFacebox.getRight();
-            Log.d(TAG, "人脸检测右边横坐标： " + right);
+    private void printAfrDetectResutl(JSONObject jsonObject) {
+        Log.d(TAG, "jsonObject = " + jsonObject.toString());
+        try {
+            JSONArray jsonArray = jsonObject.getJSONArray("detectFaceResult");
+            for (int i=0; i<jsonArray.length(); i++) {
+                JSONObject jsonObject1 = jsonArray.getJSONObject(i);
+                JSONArray jsonArray1 = jsonObject1.getJSONArray("landmark");
+                for (int j=0; j<jsonArray1.length(); j++) {
+                    JSONObject jsonObject2 = jsonArray1.getJSONObject(j);
+                    int y = jsonObject2.getInt("y");
+                    int x = jsonObject2.getInt("x");
 
-            //在人脸的图片上，把关键点给勾画出来
-            showFaceImage(bottom, top, left, right);
+                    //把关键点坐标在人脸上显示出来
+                    showLandmarkImage(x, y);
+                }
+                int gender = jsonObject1.getInt("gender");
+                if (gender == 0) {
+                    Toast.makeText(this, "男生", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "女生", Toast.LENGTH_SHORT).show();
+                }
 
-            //人脸Id
-            String faceId = afrDetectFace.getFaceId();
+                String faceId = jsonObject1.getString("faceId");
 
-            //人脸关键信息列表
-            ArrayList<AfrDetectLandmark> afrDetectLandmarks = afrDetectFace.getLandmarkList();
-            Iterator<AfrDetectLandmark> markIterator = afrDetectLandmarks.iterator();
-            while(markIterator.hasNext()){
-                AfrDetectLandmark afrDetectLandmark = markIterator.next();
-                //人脸关键点的横坐标
-                int X = afrDetectLandmark.getX();
-                Log.d(TAG, "人脸检测关键点横坐标:" + X);
-                //人脸关键点的纵坐标
-                int Y = afrDetectLandmark.getY();
-                Log.d(TAG, "人脸检测关键点纵坐标:" + Y);
-                showLandmarkImage(X, Y);
+                JSONObject jsonObject2 = jsonObject1.getJSONObject("facebox");
+                int bottom = jsonObject2.getInt("bottom");
+                int right = jsonObject2.getInt("right");
+                int left = jsonObject2.getInt("left");
+                int top = jsonObject2.getInt("top");
+
+                //在人脸的图片上，把关键点给勾画出来
+                showFaceImage(bottom, top, left, right);
             }
+        } catch (JSONException e) {
+            e.printStackTrace();
         }
     }
 
@@ -253,13 +248,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         String fileSrc = null;
         if (requestCode == REQUEST_PICTURE_CHOOSE) {
-            // Uri模型为content
-            String[] proj = {MediaStore.Images.Media.DATA};
-            Cursor cursor = getContentResolver().query(data.getData(), proj, null, null, null);
-            cursor.moveToFirst();
-            int idx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
-            fileSrc = cursor.getString(idx);
-            cursor.close();
+            if ("file".equals(data.getData().getScheme())) {
+                // 有些低版本机型返回的Uri模式为file
+                fileSrc = data.getData().getPath();
+            } else {
+                // Uri模型为content
+                String[] proj = {MediaStore.Images.Media.DATA};
+                Cursor cursor = getContentResolver().query(data.getData(), proj, null, null, null);
+                cursor.moveToFirst();
+                int idx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+                fileSrc = cursor.getString(idx);
+                cursor.close();
+            }
             // 跳转到图片裁剪页面
             FaceUtil.cropPicture(this,Uri.fromFile(new File(fileSrc)));
         }else if (requestCode == REQUEST_CAMERA_IMAGE){

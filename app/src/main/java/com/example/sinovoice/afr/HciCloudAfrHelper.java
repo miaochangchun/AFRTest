@@ -20,6 +20,8 @@ import com.sinovoice.hcicloudsdk.common.afr.AfrDetectResult;
 import com.sinovoice.hcicloudsdk.common.afr.AfrDetectRightEyeAttribute;
 import com.sinovoice.hcicloudsdk.common.afr.AfrDetectSkinAttribute;
 import com.sinovoice.hcicloudsdk.common.afr.AfrEnrollResult;
+import com.sinovoice.hcicloudsdk.common.afr.AfrIdentifyResult;
+import com.sinovoice.hcicloudsdk.common.afr.AfrIdentifyResultItem;
 import com.sinovoice.hcicloudsdk.common.afr.AfrInitParam;
 import com.sinovoice.hcicloudsdk.common.afr.AfrVerifyResult;
 
@@ -124,82 +126,14 @@ public class HciCloudAfrHelper {
             return null;
         }
 
-        JSONObject jsonObject = new JSONObject();           //总的json串  json串格式：{"afrdetectface":[{"landmark":[{"y":166,"x":109},{"y":165,"x":140},{"y":163,"x":193},{"y":162,"x":223},{"y":249,"x":137},{"y":248,"x":195},{"y":207,"x":162}],"gender":0,"faceid":"1942405736","facebox":{"bottom":319,"right":258,"left":74,"top":109}}]}
-        try {
-            JSONArray jsonArray = new JSONArray();
-            if (afrDetectResult.getFaceList().size() > 0) {       //检测到人脸
-                JSONObject jsonObject1 = new JSONObject();
-                Log.d(TAG, "人脸检测结果正确");
-                ArrayList<AfrDetectFace> afrDetectFaces = afrDetectResult.getFaceList();
-                Iterator<AfrDetectFace> detectFaceIterator = afrDetectFaces.iterator();
-                while (detectFaceIterator.hasNext()) {
-                    AfrDetectFace afrDetectFace = detectFaceIterator.next();
-                    //1.人脸属性列表
-                    ArrayList<AfrDetectFaceAttribute> afrDetectFaceAttributes = afrDetectFace.getAttributeList();
-                    Iterator<AfrDetectFaceAttribute> detectFaceAttributeIterator = afrDetectFaceAttributes.iterator();
-                    //只支持性别检测功能
-                    while (detectFaceAttributeIterator.hasNext()) {
-                        AfrDetectFaceAttribute afrDetectFaceAttribute = detectFaceAttributeIterator.next();
-                        if (afrDetectFaceAttribute instanceof AfrDetectGenderAttribute) {
-                            int gender = ((AfrDetectGenderAttribute) afrDetectFaceAttribute).getGender();
-                            Log.d(TAG, "性别：" + gender);
-                            jsonObject1.put("gender", gender);
-                        }
-                    }
-
-                    //2.人脸位置信息
-                    JSONObject jsonObject2 = new JSONObject();
-                    AfrDetectFacebox afrDetectFacebox = afrDetectFace.getFacebox();
-                    int bottom = afrDetectFacebox.getBottom();
-                    Log.d(TAG, "bottom:" + bottom);
-                    jsonObject2.put("bottom", bottom);
-                    int top = afrDetectFacebox.getTop();
-                    Log.d(TAG, "top:" + top);
-                    jsonObject2.put("top", top);
-                    int left = afrDetectFacebox.getLeft();
-                    Log.d(TAG, "left:" + left);
-                    jsonObject2.put("left", left);
-                    int right = afrDetectFacebox.getRight();
-                    Log.d(TAG, "right:" + right);
-                    jsonObject2.put("right", right);
-                    jsonObject1.put("facebox", jsonObject2);
-
-                    //3.获取人脸Id
-                    String faceId = afrDetectFace.getFaceId();
-                    Log.d(TAG, "faceId:" + faceId);
-                    jsonObject1.put("faceid", faceId);
-
-                    //4.获取人脸关键点坐标
-                    JSONArray jsonArray1 = new JSONArray();
-
-                    ArrayList<AfrDetectLandmark> afrDetectLandmarks = afrDetectFace.getLandmarkList();
-                    Iterator<AfrDetectLandmark> detectLandmarkIterator = afrDetectLandmarks.iterator();
-                    while (detectLandmarkIterator.hasNext()) {
-                        JSONObject jsonObject3 = new JSONObject();
-                        AfrDetectLandmark afrDetectLandmark = detectLandmarkIterator.next();
-                        int x = afrDetectLandmark.getX();
-                        Log.d(TAG, "x:" + x);
-                        jsonObject3.put("x", x);
-                        int y = afrDetectLandmark.getY();
-                        Log.d(TAG, "y:" + y);
-                        jsonObject3.put("y", y);
-                        jsonArray1.put(jsonObject3);
-                    }
-                    jsonObject1.put("landmark", jsonArray1);
-
-                    jsonArray.put(jsonObject1);
-                }
-                jsonObject.put("afrdetectface", jsonArray);
-            } else {
-                Log.d(TAG, "没检测到人脸！");
-                return null;
-            }
-        } catch (JSONException e) {
-            e.printStackTrace();
+        JSONObject jsonObject = null;
+        if (afrDetectResult.getFaceList().size() > 0) {
+            jsonObject = detectResultToJson(afrDetectResult);
+        } else {
+            Log.e(TAG, "没检测到人脸！");
         }
-        Log.d(TAG, "json串：" + jsonObject.toString());
 
-        //释放人脸检测的结果类
+        //释放人脸检测的结果类，否则会有内存泄露
         errorCode = HciCloudAfr.hciAfrFreeDetectResult(afrDetectResult);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrFreeDetectResult failed and return " + errorCode);
@@ -211,6 +145,85 @@ public class HciCloudAfrHelper {
             Log.e(TAG, "HciCloudAfr.hciAfrSessionStop failed and return " + errorCode);
             return null;
         }
+        return jsonObject;
+    }
+
+    /**
+     * 把人脸检测的结果转换为json串，保存到json数据中
+     * @param afrDetectResult   人脸检测的结果
+     * @return  json数据串
+     */
+    private JSONObject detectResultToJson(AfrDetectResult afrDetectResult) {
+        //总的json串  json串格式：{"afrdetectface":[{"landmark":[{"y":166,"x":109},{"y":165,"x":140},{"y":163,"x":193},{"y":162,"x":223},{"y":249,"x":137},{"y":248,"x":195},{"y":207,"x":162}],"gender":0,"faceid":"1942405736","facebox":{"bottom":319,"right":258,"left":74,"top":109}}]}
+        JSONObject jsonObject = new JSONObject();
+        try {
+            JSONArray jsonArray = new JSONArray();  //第二层，json数组，可以包含多个人脸数据
+            Log.d(TAG, "人脸检测结果正确");
+            ArrayList<AfrDetectFace> afrDetectFaces = afrDetectResult.getFaceList();
+            Iterator<AfrDetectFace> detectFaceIterator = afrDetectFaces.iterator();
+            while (detectFaceIterator.hasNext()) {
+                JSONObject faceJson = new JSONObject();          //检测到其中一个人脸的json数据，可能会有多个
+                AfrDetectFace afrDetectFace = detectFaceIterator.next();
+
+                //1.人脸属性列表
+                ArrayList<AfrDetectFaceAttribute> afrDetectFaceAttributes = afrDetectFace.getAttributeList();
+                Iterator<AfrDetectFaceAttribute> detectFaceAttributeIterator = afrDetectFaceAttributes.iterator();
+                //只支持性别检测功能
+                while (detectFaceAttributeIterator.hasNext()) {
+                    AfrDetectFaceAttribute afrDetectFaceAttribute = detectFaceAttributeIterator.next();
+                    if (afrDetectFaceAttribute instanceof AfrDetectGenderAttribute) {
+                        int gender = ((AfrDetectGenderAttribute) afrDetectFaceAttribute).getGender();
+                        Log.d(TAG, "性别：" + gender);
+                        faceJson.put("gender", gender);         //把性别添加到json数据里面，0代表男性，1代表女性
+                    }
+                }
+
+                //2.人脸位置信息
+                JSONObject faceboxJson = new JSONObject();      //把人脸的位置信息添加进来
+                AfrDetectFacebox afrDetectFacebox = afrDetectFace.getFacebox();
+                int bottom = afrDetectFacebox.getBottom();
+                Log.d(TAG, "bottom:" + bottom);
+                faceboxJson.put("bottom", bottom);
+                int top = afrDetectFacebox.getTop();
+                Log.d(TAG, "top:" + top);
+                faceboxJson.put("top", top);
+                int left = afrDetectFacebox.getLeft();
+                Log.d(TAG, "left:" + left);
+                faceboxJson.put("left", left);
+                int right = afrDetectFacebox.getRight();
+                Log.d(TAG, "right:" + right);
+                faceboxJson.put("right", right);
+                faceJson.put("facebox", faceboxJson);           //把人脸位置的json添加到人脸json串中
+
+                //3.获取人脸Id
+                String faceId = afrDetectFace.getFaceId();
+                Log.d(TAG, "faceId:" + faceId);
+                faceJson.put("faceId", faceId);                 //把人脸的faceId添加到Json串中
+
+                //4.获取人脸关键点坐标
+                JSONArray landmarkArray = new JSONArray();       //json数组用来添加人脸的关键点数据，共有七个关键点，需要保存到数组里面
+                ArrayList<AfrDetectLandmark> afrDetectLandmarks = afrDetectFace.getLandmarkList();
+                Iterator<AfrDetectLandmark> detectLandmarkIterator = afrDetectLandmarks.iterator();
+                while (detectLandmarkIterator.hasNext()) {
+                    JSONObject landmarkJson = new JSONObject();      //人脸的每一个关键点数据，之后需要保存到数组中
+                    AfrDetectLandmark afrDetectLandmark = detectLandmarkIterator.next();
+                    int x = afrDetectLandmark.getX();
+                    Log.d(TAG, "x:" + x);
+                    landmarkJson.put("x", x);
+                    int y = afrDetectLandmark.getY();
+                    Log.d(TAG, "y:" + y);
+                    landmarkJson.put("y", y);
+                    landmarkArray.put(landmarkJson);
+                }
+                faceJson.put("landmark", landmarkArray);
+
+                jsonArray.put(faceJson);        //把人脸信息添加到json数组
+            }
+            jsonObject.put("detectFaceResult", jsonArray);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+//        Log.d(TAG, "json串：" + jsonObject.toString());
         return jsonObject;
     }
 
@@ -271,31 +284,32 @@ public class HciCloudAfrHelper {
      * @param userId
      * @return
      */
-    public int enrollAfr(String fileName, String afrCapkey, String userId) {
+    public String enrollAfr(String fileName, String afrCapkey, String userId) {
         byte[] buffer = getImageBuffer(fileName);
         if (buffer.length == 0) {
             Log.e(TAG, "读取图片错误。");
-            return -1;
+            return "读取图片错误!";
         }
         Session session = new Session();
         String sessionConfig = getSessionParam(afrCapkey);
         int errorCode = HciCloudAfr.hciAfrSessionStart(sessionConfig, session);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrSessionStart failed and return " + errorCode);
-            return errorCode;
+            return null;
         }
         errorCode = HciCloudAfr.hciAfrSetImageBuffer(session, buffer);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrSetImageBuffer failed and return " + errorCode);
-            return errorCode;
+            return null;
         }
         String detectConfig = "";
         AfrDetectResult afrDetectResult = new AfrDetectResult();
         errorCode = HciCloudAfr.hciAfrDetect(session, detectConfig, afrDetectResult);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrDetect failed and return " + errorCode);
-            return errorCode;
+            return null;
         }
+        String result = "";
         if (afrDetectResult.getFaceList().size() > 0) {         //检测到人脸，才能使用注册功能
             //检测到的人脸Id
             String faceId = afrDetectResult.getFaceList().get(0).getFaceId();
@@ -308,89 +322,173 @@ public class HciCloudAfrHelper {
             errorCode = HciCloudAfr.hciAfrEnroll(session, enrollConfig, afrEnrollResult);
             if (errorCode != HciErrorCode.HCI_ERR_NONE) {
                 Log.e(TAG, "HciCloudAfr.hciAfrEnroll failed and return " + errorCode);
-                return errorCode;
+                return "人脸注册失败，错误码=" + errorCode;
             }
-
-            Log.d(TAG, "afrEnrollResult.getUserId() = " + afrEnrollResult.getUserId());
+            result = "人脸注册成功，userId=" + afrEnrollResult.getUserId();
         } else {
             Log.e(TAG, "没检测到人脸");
+            result = "没检测到人脸";
         }
-
 
         //释放检测结果。
         errorCode = HciCloudAfr.hciAfrFreeDetectResult(afrDetectResult);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrFreeDetectResult failed and return " + errorCode);
-            return errorCode;
+            return null;
         }
         // 关闭会话
         errorCode = HciCloudAfr.hciAfrSessionStop(session);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrSessionStop failed and return " + errorCode);
-            return errorCode;
+            return null;
         }
-        return HciErrorCode.HCI_ERR_NONE;
+        return result;
     }
 
-    public boolean verifyAfr(String fileName, String afrCapkey, String userId){
+    /**
+     *
+     * @param fileName
+     * @param afrCapkey
+     * @param userId
+     * @return
+     */
+    public String verifyAfr(String fileName, String afrCapkey, String userId){
         byte[] buffer = getImageBuffer(fileName);
         if (buffer.length == 0) {
             Log.e(TAG, "读取图片错误。");
-            return false;
+            return "读取图片错误!";
         }
         Session session = new Session();
         String sessionConfig = getSessionParam(afrCapkey);
         int errorCode = HciCloudAfr.hciAfrSessionStart(sessionConfig, session);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrSessionStart failed and return " + errorCode);
-            return false;
+            return null;
         }
         errorCode = HciCloudAfr.hciAfrSetImageBuffer(session, buffer);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrSetImageBuffer failed and return " + errorCode);
-            return false;
+            return null;
         }
         String detectConfig = "";
         AfrDetectResult afrDetectResult = new AfrDetectResult();
         errorCode = HciCloudAfr.hciAfrDetect(session, detectConfig, afrDetectResult);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrDetect failed and return " + errorCode);
-            return false;
+            return null;
         }
 
-        AfrVerifyResult afrVerifyResult = null;
+        String result = "";
         //检测到人脸
         if (afrDetectResult.getFaceList().size() > 0) {
             String faceId = afrDetectResult.getFaceList().get(0).getFaceId();
             String enrollConfig = "faceId = " + faceId + ",userId = " + userId + ",threshold = 50";
-            afrVerifyResult = new AfrVerifyResult();
+            AfrVerifyResult afrVerifyResult = new AfrVerifyResult();
             errorCode = HciCloudAfr.hciAfrVerify(session, enrollConfig, afrVerifyResult);
             if (errorCode != HciErrorCode.HCI_ERR_NONE) {
                 Log.e(TAG, "HciCloudAfr.hciAfrVerify failed and return " + errorCode);
-                return false;
+                return null;
             }
             if (afrVerifyResult.getStatus() == 0) {
                 Log.d(TAG, "识别结果匹配，得分是：" + afrVerifyResult.getScore());
+                result = "识别结果匹配，得分是：" + afrVerifyResult.getScore();
             }else{
                 Log.e(TAG, "识别结果不匹配，得分是：" + afrVerifyResult.getScore());
-                return false;
+                result = "识别结果不匹配，得分是：" + afrVerifyResult.getScore();
             }
         } else {
             Log.e(TAG, "没检测到人脸！");
+            result = "没检测到人脸！";
         }
 
+        //释放人脸检测的结果
+        errorCode = HciCloudAfr.hciAfrFreeDetectResult(afrDetectResult);
+        if (errorCode != HciErrorCode.HCI_ERR_NONE) {
+            Log.e(TAG, "HciCloudAfr.hciAfrFreeDetectResult failed and return " + errorCode);
+            return null;
+        }
         // 关闭会话
         errorCode = HciCloudAfr.hciAfrSessionStop(session);
         if (errorCode != HciErrorCode.HCI_ERR_NONE) {
             Log.e(TAG, "HciCloudAfr.hciAfrSessionStop failed and return " + errorCode);
-            return false;
+            return null;
         }
-
-        return true;
+        return result;
     }
 
-    //暂不实现
-    public int identifyAfr() {
-        return HciErrorCode.HCI_ERR_NONE;
+    /**
+     *
+     * @param fileName
+     * @param afrCapkey
+     * @return
+     */
+    public String identifyAfr(String fileName, String afrCapkey) {
+        byte[] buffer = getImageBuffer(fileName);
+        if (buffer.length == 0) {
+            Log.e(TAG, "读取图片错误。");
+            return "读取图片错误!";
+        }
+        Session session = new Session();
+        String sessionConfig = getSessionParam(afrCapkey);
+        int errorCode = HciCloudAfr.hciAfrSessionStart(sessionConfig, session);
+        if (errorCode != HciErrorCode.HCI_ERR_NONE) {
+            Log.e(TAG, "HciCloudAfr.hciAfrSessionStart failed and return " + errorCode);
+            return null;
+        }
+        errorCode = HciCloudAfr.hciAfrSetImageBuffer(session, buffer);
+        if (errorCode != HciErrorCode.HCI_ERR_NONE) {
+            Log.e(TAG, "HciCloudAfr.hciAfrSetImageBuffer failed and return " + errorCode);
+            return null;
+        }
+        String detectConfig = "";
+        AfrDetectResult afrDetectResult = new AfrDetectResult();
+        errorCode = HciCloudAfr.hciAfrDetect(session, detectConfig, afrDetectResult);
+        if (errorCode != HciErrorCode.HCI_ERR_NONE) {
+            Log.e(TAG, "HciCloudAfr.hciAfrDetect failed and return " + errorCode);
+            return null;
+        }
+
+        String result = "";
+        //检测到人脸
+        if (afrDetectResult.getFaceList().size() > 0) {
+            String faceId = afrDetectResult.getFaceList().get(0).getFaceId();
+            String groupName = "";
+            String enrollConfig = "faceId = " + faceId + ",threshold = 50,groupId=" + groupName + ",candnum=10";
+            AfrIdentifyResult afrIdentifyResult = new AfrIdentifyResult();
+            errorCode = HciCloudAfr.hciAfrIdentify(session, enrollConfig, afrIdentifyResult);
+            if (errorCode != HciErrorCode.HCI_ERR_NONE) {
+                Log.e(TAG, "HciCloudAfr.hciAfrIdentify failed and return " + errorCode);
+                return null;
+            }
+            ArrayList<AfrIdentifyResultItem> afrIdentifyResultItems = afrIdentifyResult.getIdentifyResultItemList();
+            if (afrIdentifyResultItems.size() < 0) {
+                Log.d(TAG, "没有找到匹配的人脸");
+                result = "没有找到匹配的人脸";
+            } else {
+                result = "你是：" + afrIdentifyResultItems.get(0).getUserId() + "，得分：" + afrIdentifyResultItems.get(0).getScore();
+            }
+            Iterator<AfrIdentifyResultItem> afrIdentifyResultItemIterator = afrIdentifyResultItems.iterator();
+            while (afrIdentifyResultItemIterator.hasNext()) {
+                AfrIdentifyResultItem afrIdentifyResultItem = afrIdentifyResultItemIterator.next();
+                Log.d(TAG, "你是：" + afrIdentifyResultItem.getUserId() + ",得分：" + afrIdentifyResultItem.getScore());
+            }
+        } else {
+            Log.e(TAG, "没检测到人脸！");
+            result = "没检测到人脸！";
+        }
+
+        //释放人脸检测的结果
+        errorCode = HciCloudAfr.hciAfrFreeDetectResult(afrDetectResult);
+        if (errorCode != HciErrorCode.HCI_ERR_NONE) {
+            Log.e(TAG, "HciCloudAfr.hciAfrFreeDetectResult failed and return " + errorCode);
+            return null;
+        }
+        // 关闭会话
+        errorCode = HciCloudAfr.hciAfrSessionStop(session);
+        if (errorCode != HciErrorCode.HCI_ERR_NONE) {
+            Log.e(TAG, "HciCloudAfr.hciAfrSessionStop failed and return " + errorCode);
+            return null;
+        }
+        return result;
     }
 }
