@@ -185,9 +185,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 }
                 int gender = jsonObject1.getInt("gender");
                 if (gender == 0) {
-                    Toast.makeText(this, "男生", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "性别：男", Toast.LENGTH_SHORT).show();
                 } else {
-                    Toast.makeText(this, "女生", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "性别：女", Toast.LENGTH_SHORT).show();
                 }
 
                 String faceId = jsonObject1.getString("faceId");
@@ -248,6 +248,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         String fileSrc = null;
         if (requestCode == REQUEST_PICTURE_CHOOSE) {
+            if (data == null) {
+                return;
+            }
             if ("file".equals(data.getData().getScheme())) {
                 // 有些低版本机型返回的Uri模式为file
                 fileSrc = data.getData().getPath();
@@ -272,6 +275,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             FaceUtil.cropPicture(this,Uri.fromFile(new File(fileSrc)));
         } else if (requestCode == FaceUtil.REQUEST_CROP_IMAGE) {
             // 获取返回数据
+            if (data == null) {
+                return;
+            }
             Bitmap bitmap = data.getParcelableExtra("data");
             // 若返回数据不为null，保存至本地，防止裁剪时未能正常保存
             if(null != bitmap){
